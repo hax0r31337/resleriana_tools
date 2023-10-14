@@ -14,9 +14,9 @@ import (
 const BASE_URL = "https://asset.resleriana.jp/asset/{REPLACE THIS WITH ASSET VERSION}/Android/"
 
 type task struct {
-	r        io.ReadCloser
-	w        io.WriteCloser
-	k        []byte
+	reader   io.ReadCloser
+	writer   io.WriteCloser
+	key      []byte
 	packMode uint8
 }
 
@@ -28,7 +28,7 @@ func main() {
 	}
 
 	var wg sync.WaitGroup
-	taskc := make(chan task)
+	taskc := make(chan *task)
 	for i := 0; i < 16; i++ {
 		go worker(taskc, &wg)
 	}
@@ -55,16 +55,16 @@ func main() {
 			panic(err)
 		}
 
-		task := task{
-			r:        resp.Body,
-			w:        out,
-			k:        []byte(fmt.Sprintf("%s-%d-%s-%d", bundle.BundleName, bundle.FileSize-28, bundle.Hash, bundle.CRC)),
+		task := &task{
+			reader:   resp.Body,
+			writer:   out,
+			key:      []byte(fmt.Sprintf("%s-%d-%s-%d", bundle.BundleName, bundle.FileSize-28, bundle.Hash, bundle.CRC)),
 			packMode: bundle.Compression,
 		}
-		taskc <- task
-		wg.Add(1)
 
 		log.Printf("extracting %s\n", bundle.RelativePath)
+		wg.Add(1)
+		taskc <- task
 	}
 
 	wg.Wait()
@@ -73,18 +73,22 @@ func main() {
 	fmt.Println(time.Since(t))
 }
 
-func worker(c chan task, wg *sync.WaitGroup) {
+func worker(c <-chan *task, wg *sync.WaitGroup) {
+	var err error
 	for t := range c {
 		switch t.packMode {
 		case PackModeAktsk:
-			pack.ReadPackedAB(t.r, t.w, t.k)
+			err = pack.ReadPackedAB(t.reader, t.writer, t.key)
 		case PackModeNone:
-			io.Copy(t.w, t.r)
+			_, err = io.Copy(t.writer, t.reader)
 		default:
 			log.Fatalf("unknown pack mode: %d", t.packMode)
 		}
-		t.r.Close()
-		t.w.Close()
+		if err != nil {
+			panic(err)
+		}
+		t.reader.Close()
+		t.writer.Close()
 		wg.Done()
 	}
 }

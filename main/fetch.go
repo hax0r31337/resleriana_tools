@@ -4,11 +4,14 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
-	"time"
 )
 
 var client = &http.Client{
-	Timeout: 5 * time.Second,
+	Transport: &http.Transport{
+		DisableKeepAlives: true,
+		ForceAttemptHTTP2: true,
+		Proxy:             http.ProxyFromEnvironment,
+	},
 }
 
 func fetch(path string) (*http.Response, error) {
@@ -25,5 +28,5 @@ func fetch(path string) (*http.Response, error) {
 
 	req.Header.Add("User-Agent", "BestHTTP/2 v2.5.4")
 
-	return http.DefaultClient.Do(req)
+	return client.Do(req)
 }

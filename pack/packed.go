@@ -62,30 +62,30 @@ func ReadPackedAB(r io.Reader, out io.Writer, key []byte) error {
 		return errors.New("read header: " + err.Error())
 	}
 
-	hasher := md5.New()
-	r = encryptor.NewHashReader(r, hasher)
+	body, err := io.ReadAll(r)
+	if err != nil {
+		return errors.New("read body: " + err.Error())
+	}
+
+	sum := md5.Sum(body)
+
+	if !bytes.Equal(sum[:], header.Checksum[:]) {
+		return errors.New("checksum mismatch")
+	}
 
 	switch header.Encryption {
 	case EncryptNone:
 	case EncryptStream:
 		enc := encryptor.NewBlock512KeyGenerator(key)
 		stream := encryptor.NewPositionBasedEncryptor(enc, 0)
-		r = encryptor.NewStreamCipherReader(r, stream)
+		stream.XORKeyStream(body, body)
 	default:
 		return fmt.Errorf("unknown encryption mode: %d", header.Encryption)
 	}
 
-	_, err = io.Copy(out, r)
-	if err != nil {
-		return err
-	}
+	_, err = out.Write(body)
 
-	if !bytes.Equal(hasher.Sum(nil), header.Checksum[:]) {
-		println(hex.EncodeToString(hasher.Sum(nil)))
-		return errors.New("checksum mismatch")
-	}
-
-	return nil
+	return err
 }
 
 func mustRead(r io.Reader, arr []byte) error {
