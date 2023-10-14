@@ -2,50 +2,46 @@ package main
 
 import (
 	"aktsk/pack"
-	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"time"
 )
 
+const BASE_URL = "https://asset.resleriana.jp/asset/{REPLACE THIS WITH ASSET VERSION}/Android/"
+
 type task struct {
-	r io.ReadCloser
-	w io.WriteCloser
-	k []byte
+	r        io.ReadCloser
+	w        io.WriteCloser
+	k        []byte
+	packMode uint8
 }
 
 func main() {
 	catalog := Catalog{}
-
-	j, err := os.ReadFile("./dat/catalog.json")
-	if err != nil {
-		panic(err)
-	}
-
-	err = json.Unmarshal(j, &catalog)
+	err := catalog.FetchCatalog()
 	if err != nil {
 		panic(err)
 	}
 
 	var wg sync.WaitGroup
 	taskc := make(chan task)
-	for i := 0; i < runtime.NumCPU(); i++ {
+	for i := 0; i < 16; i++ {
 		go worker(taskc, &wg)
 	}
 
 	t := time.Now()
 
 	for _, bundle := range catalog.Files.Bundles {
-		b, err := os.Open("./dat/" + bundle.RelativePath)
+		resp, err := fetch(bundle.RelativePath)
 		if err != nil {
 			panic(err)
 		}
 
-		outPath := "./dat/out/" + bundle.RelativePath
+		outPath := "./extracted/" + bundle.RelativePath
 		outDir := filepath.Dir(outPath)
 		if _, err := os.Stat(outDir); os.IsNotExist(err) {
 			err = os.MkdirAll(outDir, 0755)
@@ -60,12 +56,15 @@ func main() {
 		}
 
 		task := task{
-			r: b,
-			w: out,
-			k: []byte(fmt.Sprintf("%s-%d-%s-%d", bundle.BundleName, bundle.FileSize-28, bundle.Hash, bundle.CRC)),
+			r:        resp.Body,
+			w:        out,
+			k:        []byte(fmt.Sprintf("%s-%d-%s-%d", bundle.BundleName, bundle.FileSize-28, bundle.Hash, bundle.CRC)),
+			packMode: bundle.Compression,
 		}
 		taskc <- task
 		wg.Add(1)
+
+		log.Printf("extracting %s\n", bundle.RelativePath)
 	}
 
 	wg.Wait()
@@ -76,7 +75,14 @@ func main() {
 
 func worker(c chan task, wg *sync.WaitGroup) {
 	for t := range c {
-		pack.ReadPackedAB(t.r, t.w, t.k)
+		switch t.packMode {
+		case PackModeAktsk:
+			pack.ReadPackedAB(t.r, t.w, t.k)
+		case PackModeNone:
+			io.Copy(t.w, t.r)
+		default:
+			log.Fatalf("unknown pack mode: %d", t.packMode)
+		}
 		t.r.Close()
 		t.w.Close()
 		wg.Done()
