@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
-	"fmt"
 )
 
 var client = &http.Client{
@@ -20,8 +19,7 @@ func fetch(path string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	encodedPath := url.QueryEscape(path)
-	u.Path = filepath.Join(u.Path, encodedPath)
+	u.Path = filepath.Join(u.Path, path)
 
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
@@ -30,13 +28,5 @@ func fetch(path string) (*http.Response, error) {
 
 	req.Header.Add("User-Agent", "BestHTTP/2 v2.5.4")
 
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Printf("client Do Request: %s\n", resp)
-		return nil, err
-	}
-
-
-	return resp, nil
-
+	return client.Do(req)
 }
