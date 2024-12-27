@@ -10,10 +10,11 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+    "strings"
 )
 
-type VersionInfo struct {
-	AssetsVersion string `json:"assets_version"`
+type ConfigInfo struct {
+	FetchUrl string `json:"fetch_url"`
 }
 
 var BASE_URL string
@@ -26,49 +27,59 @@ type task struct {
 }
 
 func main() {
+
 	exeName := filepath.Base(os.Args[0])
-	versionFile := filepath.Join(exeName + "_versions.json") // Use filepath.Join for cross-platform path construction
+	exeNameWithoutExt := strings.TrimSuffix(exeName, filepath.Ext(exeName))
+	configFile := filepath.Join(exeNameWithoutExt + "_config.json") // Use filepath.Join for cross-platform path construction
 
-	if _, err := os.Stat(versionFile); os.IsNotExist(err) {
-		var versionInfo VersionInfo
-		versionInfo.AssetsVersion = "AssetsVersion"
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
+		var ConfigInfo ConfigInfo
+		ConfigInfo.FetchUrl = "https://asset.resleriana.com/asset/AssetsVersion/Android/"
 
-		file, err := os.Create(versionFile)
+		file, err := os.Create(configFile)
 		if err != nil {
 			panic(err)
 		}
 		defer file.Close()
 
 		encoder := json.NewEncoder(file)
-		err = encoder.Encode(versionInfo)
+		err = encoder.Encode(ConfigInfo)
 		if err != nil {
 			panic(err)
 		}
 	}
 
-	var versionInfo VersionInfo
-	file, err := os.Open(versionFile)
+	var ConfigInfo ConfigInfo
+	file, err := os.Open(configFile)
 	if err != nil {
 		panic(err)
 	}
 	defer file.Close()
 
 	decoder := json.NewDecoder(file)
-	err = decoder.Decode(&versionInfo)
+	err = decoder.Decode(&ConfigInfo)
 	if err != nil {
 		panic(err)
 	}
+	
+	ConfigInfojsonData, err := json.MarshalIndent(&ConfigInfo, "", "  ")
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
 
-	fmt.Printf("exeName: %s\n", exeName)
-	fmt.Printf("versionFile: %s\n", versionFile)
-	fmt.Printf("versionInfo: %+v\n", versionInfo)
+	fmt.Printf("exeNameWithoutExt: %s\n", exeNameWithoutExt)
+	fmt.Printf("configFile: %s\n", configFile)
+	fmt.Printf("ConfigInfo: %+v\n", string(ConfigInfojsonData))
 
-	BASE_URL = fmt.Sprintf("https://asset.resleriana.com/asset/%s/Android/", versionInfo.AssetsVersion)
+	BASE_URL = fmt.Sprintf("%s", ConfigInfo.FetchUrl)
 
 	catalog := Catalog{}
 	err = catalog.FetchCatalog()
 	if err != nil {
-		fmt.Printf("version \"%+v\" is not Incorrect.\n", versionInfo.AssetsVersion)
+		log.Printf("Failed to fetch catalog: %v\n", err)
+	} else {
+		fmt.Println("Catalog fetched successfully")
 	}
 
 	var wg sync.WaitGroup
