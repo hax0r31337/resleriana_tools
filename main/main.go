@@ -68,7 +68,7 @@ func main() {
 	catalog := Catalog{}
 	err = catalog.FetchCatalog()
 	if err != nil {
-		panic(err)
+		fmt.Printf("version \"%+v\" is not Incorrect.\n", versionInfo.AssetsVersion)
 	}
 
 	var wg sync.WaitGroup
