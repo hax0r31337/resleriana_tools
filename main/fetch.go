@@ -1,32 +1,28 @@
 package main
 
 import (
-	"net/http"
-	"net/url"
-	"path/filepath"
+    "fmt"
+    "net/http"
+    "net/url"
+    "path"
 )
 
-var client = &http.Client{
-	Transport: &http.Transport{
-		DisableKeepAlives: true,
-		ForceAttemptHTTP2: true,
-		Proxy:             http.ProxyFromEnvironment,
-	},
-}
+func fetch(pathSegment string) (*http.Response, error) {
+    u, err := url.Parse(BASE_URL)
+    if err != nil {
+        return nil, err
+    }
+    u.Path = path.Join(u.Path, pathSegment)
+    
+    fmt.Printf("u.String(): %s\n", u.String())
 
-func fetch(path string) (*http.Response, error) {
-	u, err := url.Parse(BASE_URL)
-	if err != nil {
-		return nil, err
-	}
-	u.Path = filepath.Join(u.Path, path)
+    req, err := http.NewRequest("GET", u.String(), nil)
+    if err != nil {
+        return nil, err
+    }
 
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return nil, err
-	}
+    req.Header.Add("User-Agent", "BestHTTP/2 v2.5.4")
 
-	req.Header.Add("User-Agent", "BestHTTP/2 v2.5.4")
-
-	return client.Do(req)
+    client := &http.Client{}
+    return client.Do(req)
 }

@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"io"
+	"fmt"
+	"log"
 )
 
 const (
@@ -37,6 +39,13 @@ func (c *Catalog) FetchCatalog() error {
 	if err != nil {
 		return err
 	}
-
-	return json.Unmarshal(j, c)
+	
+	err = json.Unmarshal(j, c)
+	if err != nil {
+		fmt.Printf("FetchCatalog data: %s\n", string(j))
+		log.Println("Unmarshal error:", err) 
+		return err 
+	} else {
+		return json.Unmarshal(j, c)
+	}
 }
